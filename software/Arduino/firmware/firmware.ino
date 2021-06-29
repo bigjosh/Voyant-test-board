@@ -24,6 +24,15 @@ struct spi_port : SoftSPIB {
           
           pinMode( _rst , OUTPUT );
         }
+
+
+        void start() {
+          digitalWrite( _cs , LOW);
+        }
+       
+        void end() {
+          digitalWrite( _cs , HIGH);
+        }
     
         void set_reset( boolean b ) {
           digitalWrite( _rst , b );
