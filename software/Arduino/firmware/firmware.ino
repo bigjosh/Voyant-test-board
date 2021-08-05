@@ -23,76 +23,104 @@
 
 #include <limits.h>   // UCHAR_MAX
 
-#include <map>
-using namespace std;
+#include <map>        // Used to store the list of SPI targets by index
 
-std::map<int, char> m = {{1, 'a'}, {3, 'b'}, {5, 'c'}, {7, 'd'}};
+#define SPI_BITS_PER_S 1000000       
 
 // This structure defines an SPI port target. 
 
-struct spi_target { 
-
+struct spi_target  { 
 
   private:
-
-      SoftSPIB soft_spi;         // Favor composition over inheritance. Makes it easier to have hertogenious port types in the future. 
-          
-      uint8_t _rst;             // Reset pin or NO_RESET_PIN if none supported
-      uint8_t _cs;              // Chip select pin
+            
+      uint8_t const _mosi;       // Master OUT, Slave IN pin
+      uint8_t const _miso;       // Master IN, Slave OUT pin      
+      uint8_t const _clk;        // CLock pin
+      uint8_t const _cs;         // Chip Select pin
 
   public:
 
-      static const uint8_t NO_RESET_PIN= UCHAR_MAX;    // Special value indicates this port does not have a reset pin. 
-
-      spi_port( uint8_t mosi, uint8_t miso, uint8_t sck , uint8_t cs , uint8_t rst ) {
-              
-        soft_spi =  SoftSPIB( mosi , miso , sck );
-        _cs    = cs;
-        _rst = rst;          
+      spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs ) :  _mosi{mosi} , _miso{miso} , _clk{clk} , _cs{ cs } {};
         
-      }
+      void init() const {
 
-      // No reset pin version
-      spi_port( uint8_t mosi, uint8_t miso, uint8_t sck , uint8_t cs ) {
+        digitalWrite( _mosi , LOW );
+        pinMode( _mosi , OUTPUT );
 
-        spi_port(  mosi,  miso,  sck , cs , NO_RESET_PIN ); 
-        
-      }
+        digitalWrite( _miso , LOW );  // Disable pull-up
+        pinMode( _miso , INPUT );
 
-      // Sorry for this value overload, but C++ doesn't have any elegant way to do a discriminated union. :/
-      boolean reset_supported() {
-        return _rst != NO_RESET_PIN; 
-      }
-
-        
-      void begin() {
-        soft_spi.begin();
+        digitalWrite( _clk , LOW );   // Clock idle LOW
+        pinMode( _clk , OUTPUT ); 
+    
+        digitalWrite( _cs , HIGH );   // ~CS idle HIGH
         pinMode( _cs  , OUTPUT );
-        digitalWrite( _cs , HIGH );
-
-        if (reset_supported()) {
-          pinMode( _rst , OUTPUT );
-        }
       }
 
-
-      void start() {
+      void start() const {
         digitalWrite( _cs , LOW);
       }
      
-      void end() {
+      void end() const {
         digitalWrite( _cs , HIGH);
       }
 
-       
-      // Set the value output on the reset pin. 
-      void set_reset(boolean b) {
-        digitalWrite( _rst , b );
-      }
-      
+      uint8_t transfer( const uint8_t b ) const {
 
-                
+        // Calculate delay bewteen clock transitions (all done at compile time)
+        // Note that we will run slightly slower than this due to overhead.
+        // Easy to compensate for if needed. 
+        constexpr byte CLOCKS_PER_BIT = 2; 
+        constexpr unsigned long CLOCKS_PER_S = SPI_BITS_PER_S * CLOCKS_PER_BIT;
+        constexpr unsigned long NS_PER_S = 1000000000UL;
+        constexpr unsigned long NS_PER_CLOCK = NS_PER_S / CLOCKS_PER_S;
+
+        uint8_t in_val =0;
+        uint8_t bit_mask = 0b10000000;      // MSB first is standard 
+
+        do {
+
+          digitalWrite( _mosi , b & bit_mask );
+          delayNanoseconds( NS_PER_CLOCK );                    
+          digitalWrite( _clk, HIGH );
+          
+          in_val <<=1;
+          in_val |= digitalRead( _miso ); 
+          
+          delayNanoseconds( NS_PER_CLOCK );                    
+          digitalWrite( _clk, LOW );
+
+          bit_mask >>= 1;
+
+        } while (bit_mask);
+        
+        return in_val;
+      }
+          
+          
 };
+
+// Define our SPI targets in a map so we can access them by `tag`, which is a single char the API
+// uses to refer to a target. 
+
+static const std::map< char , spi_target > spi_targets = {
+
+  // { tag ,  spi_port( mosi, miso, sck , cs ) }
+  
+  {'1', spi_target( 33 , 32 , 31 , 30 ) }, 
+  {'A', spi_target(  4 ,  6 ,  2 , 37 ) },        // On the aux header on the right side of the PCB
+  
+};
+
+
+void init_spi_targets() {
+
+  // Hey C++, where is my `std::for_all`?
+  for( auto &st : spi_targets) {
+    st.second.init(); 
+  }
+  
+}
 
 // A UART bridge connects a virtual USB port to physical UART pins
 // It automatically makes the baud rate on the pins follow the baud rate on the virtual port
@@ -102,22 +130,16 @@ struct uart_bridge {
 
   private:
 
-
-      HardwareSerial  *_real_port;
+      HardwareSerial  * const _real_port;
      
-      usb_serial2_class *_virtual_port;
+      usb_serial2_class  * const _virtual_port;
 
       boolean virtual_port_active_state = false;   // Is this port currently "active"
          
 
   public:
   
-      uart_bridge( const HardwareSerial  *real_port, const usb_serial2_class *virtual_port  ) {
-
-        _real_port = real_port;
-        _virtual_port = virtual_port;                 
-        
-      }  
+      uart_bridge(  HardwareSerial  * const real_port,  usb_serial2_class * const virtual_port  ): _real_port{ real_port} , _virtual_port{ virtual_port} {};
 
       void service() {
 
@@ -161,21 +183,21 @@ struct uart_bridge {
 
 uart_bridge uart_bridges[] = {
 
-  uart_bridge( &Serial2 , &SerialUSB1 ),      // TEC_UART connection
+  uart_bridge( &Serial2 , &SerialUSB1 ),      // TEC_UART connection on M50
   
 };
+
 
 // Call this periodically to keep the uart bridges fresh
 
 void service_uart_bridges() {
 
+  // Hey C++, where is my `std::for_all`?
   for( auto &ub : uart_bridges ) {
     ub.service(); 
   }
   
 }
-
-
 
 
 /*
@@ -194,6 +216,8 @@ const int slaveSelectPinS2 = 5;
 */
 
 
+//spi_target spi_a = spi_target(  4 ,  6 ,  2 , 37 );
+
 void setup()
 {
 
@@ -205,9 +229,10 @@ void setup()
   // Intialize outbound UART (`TEC_UART` on board). Does not matter what baud we pick, we will adjust the output baud to match whatever
   // the USB virtual port baud is before each send. 
   Serial2.begin(9600);
- 
-}
 
+  init_spi_targets();
+  
+}
 
 
 
@@ -215,6 +240,36 @@ void loop() {
 
   // Maintain the uart bridges 
   service_uart_bridges();
+  
+  auto const i =  spi_targets.find('A');
+
+  if (i != spi_targets.end()) {
+
+    spi_target s = i->second;
+
+    s.start();
+    s.transfer( 'J' );
+    s.transfer( 'L' );
+    s.end();
+
+    delay(100);
+    
+  } else {
+    Serial.println("map not found.");
+  }
+
+
+/*    
+    spi_a.start();
+    spi_a.transfer( 'J' );
+    spi_a.transfer( 'O' );
+    spi_a.transfer( 'S' );
+    
+    spi_a.transfer( 'H' );    
+    spi_a.end();
+
+    delay(100);
+*/
   
 }
 
