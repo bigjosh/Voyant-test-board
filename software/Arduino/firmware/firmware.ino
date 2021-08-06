@@ -554,14 +554,15 @@ static const std::map< char , Spi_target > spi_targets = {
 
 static const std::map< char , Io_target > io_targets = {
 
-  // key in the map is the `target` char that the API uses to specify which IO target. These are arbitrary.
+  // key in the map is the `target` char that the API uses to specify which IO target. 
+  // The tags are arbitrary (but meant to hopefully be mnemonic)   
   // The pin refers to the Teensy pin number. 
   // io_target( uint8_t pin ) 
 
   // The comment is the label on the pin on the M50 connector
   
-  {'P', Io_target( 24 ) },    // ENABLE_-2V0_BIAS
-  {'N', Io_target( 25 ) },    // ENABLE_2V0_BIAS
+  {'N', Io_target( 24 ) },    // ENABLE_-2V0_BIAS
+  {'P', Io_target( 25 ) },    // ENABLE_2V0_BIAS
   
   {'3', Io_target(  3 ) },    // AD5766_A_RST_N (SPI3)
   {'4', Io_target(  9 ) },    // AD5766_B_RST_N (SPI4)

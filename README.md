@@ -73,9 +73,82 @@ The maximum line length in either direction is currently 255 bytes.
 
 ### SPI Commands
 
+#### Cheat Sheet
+
+Connect to first USB serial port. All requests and responses are single line of ASCII text.  
+
+`T1771FF5600` - `T`= Transfer command, `1`= Tag for SPI1 target, sends the three bytes `77`h, `1f`h, `f5`h. Returns with...
+`S567483` - `S` - Transfer completed, where `56`h, `74`h, and `83`h are the bytes read from the SPI. 
+
+`;This is a comment becuase it starts with semicolon. Send or ignore me.` 
+
+`IN1` - `I` = Set digital IO command, `N`=Tag for `ENABLE_-2V0_BIAS` pin, `1` = Set pin HIGH. Returns with...
+`H` - `H` =  Set completed.  
+
+`D1000` - `D` = Delay command, `1000` = 1000 milliseconds. Returns (after the delay) with...
+`C` - `C` = Delay completed. 
+
+Getting back an `E` indicates an error. A comment that tells you why.
+
+All commands are synchronous (for now).
+
+All SPIs run at 1Mhz for now. 
+
+#### Target Tags
+
+##### SPI target tags
+
+```
+  // Taken directly from schamtics. The numbers here refer to the pin numbers on the Teensy. 
+  // The tags are taken from the labels on the M50 connector diagram except for `A` which is on the AUX header.
+  
+  // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps ) 
+  
+  {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS ) }, 
+  {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS ) }, 
+  {'3', Spi_target( 26 , 12 , 13 ,  0 , SPI_BPS ) }, 
+  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS ) }, 
+  {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS ) }, 
+  
+  {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS ) },        // On the aux header on the right side of the PCB
+```
+
+
+##### IO target tags
+
+```
+  // The tags are arbitrary (but meant to hopefully be mnemonic) 
+  // The pin refers to the Teensy pin number. 
+  // io_target( uint8_t pin ) 
+
+  // The comment is the label on the pin on the M50 connector
+  
+  {'N', Io_target( 24 ) },    // ENABLE_-2V0_BIAS
+  {'P', Io_target( 25 ) },    // ENABLE_2V0_BIAS
+  
+  {'3', Io_target(  3 ) },    // AD5766_A_RST_N (SPI3)
+  {'4', Io_target(  9 ) },    // AD5766_B_RST_N (SPI4)
+  {'5', Io_target( 16 ) },    // POT_RST_N      (SPI5)
+
+  {'T', Io_target(  5 ) },    // TEC_ENABLE_N   (TEC_UART)
+```
+
 #### Omnibus Error Response
 
-`E`
+##### Format 
+
+| Content | Bytes | Desc |
+| - | - | - | 
+| `E` | 1 | Specifies Error Response |
+
+
+##### Example
+```
+;Invlaid hex digit in SPI transfer
+E
+```
+
+##### Description
 
 The error response is sent in response to any invalid or malformed request. 
 
@@ -83,7 +156,7 @@ If `DEBUG` is #defined as `1`, then each error response will be preceded by a co
 
 All errors should be considered exceptions and indicate either a logic problem or a config mismatch. 
 
-#### Transfer
+#### Transfer Request
 
 Sends a series of bytes to an SPI target and simultaneously reads the same number of bytes from that target.
 
@@ -95,13 +168,14 @@ Sends a series of bytes to an SPI target and simultaneously reads the same numbe
 | tag | 1 | Specifies SPI target port. Can be `1`-`6` or `A` |  
 | data | 2,4,6,... | Variable length of bytes to send, each as a two digit ASCII hex number |
 
-Note that if the data part is not an even number of chars then the last char will be ignored. 
+##### Example
+```
+TA0C0A0F0E90
+```
 
-Note that if data contains any non-hex digits then they will be interpreted as `0`.  
+Sends the bytes 0x0c, 0x0a, 0x0f, 0x0e , 0x90 to SPI port target `A` (which is on the AUX header).   
 
-##### Responses
-
-On success:
+##### Transfer Response
 
 | Content | Bytes | Desc |
 | - | - | - | 
