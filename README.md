@@ -4,11 +4,19 @@
 
 ![](test-board-headshot.jpg)
 
-A thin board+firmware that provides a USB serial interface that can exercise SPI targets on the midboard via an M50 connector. The same M50 connector includes a pass-thru serial port labeled "TEC_UART". All pins from the M50 connector are also directly available via break-out headers for debugging. 
+A thin board+firmware that provides...
 
-There is an auxiliary header that includes an additional SPI port, along with extra digital, analog, and UART pins for future expansion.   
+1. a USB host serial interface that can exercise SPI and digital IO targets on the midboard via the M50 connector
+2. a pass-thru serial port labeled "TEC_UART" via the M50 connector
+3. an auxiliary header with additional pins available for digital IO, SPI, and serial. 
+
+Not that all pins from the M50 connector are also directly available via break-out headers for debugging. 
 
 ## Usage
+
+### M50 labels
+
+Note that all of the labels on the M50 pins are from the other side's point of view. For example, `TEC_RX` is going out of the test board into the `TEC`, and `TEC_TX` is going out of the `TEC`. `SPI_1_DIN` is going out of the test-board and into the `DIN` pin of the AD7490 on the mid-board  and `SPI_5_DOUT` goes out of the `SDO` (Slave Data Out) pin of the AD5142 and into the `MISO` (Master In, Slave Out) of the test-board.   
 
 ### Serial ports
 
@@ -19,7 +27,9 @@ look under "Tools->Port" and the command port will show up labeled as `Teensy`. 
 
 #### `TEC_UART` pass-thru serial port
 
-This is a direct pass-thru from the virtual USB port on the host to the `TEC_UART` RX and TX pins on the M50 connector. The connector serial port will track whatever the baud rate host serial port is set to. Note that the parity and bits are always N,8,1 but this can be changed in the firmware if needed.
+This is a direct pass-thru from the virtual USB port on the host to the `TEC_UART` RX and TX pins on the M50 connector. The connector serial port will track whatever the baud rate host serial port is set to.
+
+Note that the parity and bits are always N,8,1 but this can be changed in the firmware if needed.
 
 #### Additional pass-thru serial ports
 
@@ -29,7 +39,7 @@ To enable the corresponding USB virtual serial port, change the `USB Type` in `T
 
 #### `SPI command` serial port   
 
-This serial connection accepts commands from the host according to the [API below](#api). These commands can send and receive data on the SPI ports, set the state of a few miscellaneous digital lines on the connector, and add delays. 
+This serial connection accepts commands from the host according to the [API below](#api). These commands can send and receive data on the SPI ports, set the state of a few miscellaneous digital lines on the connector, and add delays.
 
 Note that this virtual port will always run at USB maximum speed regardless of what baud rate it is set to on the host. That rate could be as high as 480Mbs, limited mostly by the host's USB bandwidth.
 
@@ -41,16 +51,19 @@ There are three types of commands: SPI Commands, Digital IO Commands, and commen
 
 ### SPI Commands
 
-There are a total of 7 SPI command targets and each has an identifying index. Each SPI target has 4 associated pins: DIN, DOUT, CLK, and CS. Any optional RESET pins are controlled using the[ digital IO commands](#Digital-IO-Commands) below.   
+There are a total of 7 SPI command targets and each has an identifying one character index name. Each SPI target has 4 associated pins: MISO, MOSI, CLK, and CS. The test-board is always the master and MISO is the only pin on each SPI port that is an input to the test-board. Any optional RESET pins are controlled using the[ digital IO commands](#Digital-IO-Commands) below.   
+
+Again, remember that the labels on the M50 connector are from the mid-board's point of view! A `DOUT` label on the test board means that pin is an output from the mid-board and an input to the test-board!
 
 SPI targets 1-6 are labeled on the M50 connector. 
+SPI target 7 is on the aux header with these pins (`MISO` is the only pin input to the test-board)...
 
 ![](M50-header.png)  
 
 
 SPI target 7 is on the break-out header.
 
-![](Breakout-header.png)
+![](aux-header.png)
 
 Note that currently all SPI ports run at 2MHz to reduce the chances of signal quality problems, but this can be increased on any or all ports with changes to the firmware. 
 
