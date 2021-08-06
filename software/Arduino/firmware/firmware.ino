@@ -534,9 +534,17 @@ struct Command_port {
 static const std::map< char , Spi_target > spi_targets = {
 
   // key in the map is the `target` char that the API uses to specify which SPI target
+  // Taken directly from schamtics. The numbers here refer to the pin numbers on the Teensy. 
+  // The tags are taken from the labels on the M50 connector diagram except for `A` which is on the AUX header.
+  
   // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps ) 
   
   {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS ) }, 
+  {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS ) }, 
+  {'3', Spi_target( 26 , 12 , 13 ,  0 , SPI_BPS ) }, 
+  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS ) }, 
+  {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS ) }, 
+  
   {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS ) },        // On the aux header on the right side of the PCB
   
 };
