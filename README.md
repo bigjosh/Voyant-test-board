@@ -6,9 +6,10 @@
 
 A thin board+firmware that provides...
 
-1. a USB host serial interface that can exercise SPI and digital IO targets on the midboard via the M50 connector
+1. a text-based USB host serial command interface
+2. an M50 connector with SPI and digital IO targets on the midboard via the M50 connector
 2. a pass-thru serial port labeled "TEC_UART" via the M50 connector
-3. an auxiliary header with additional pins available for digital IO, SPI, and serial. 
+3. an auxiliary header with additional pins available for digital IO, SPI, analog IO, and serial. 
 
 Not that all pins from the M50 connector are also directly available via break-out headers for debugging. 
 
@@ -20,14 +21,14 @@ Note that all of the labels on the M50 pins are from the other side's point of v
 
 ### Serial ports
 
-When you connect the test board to a host computer via USB, you should see two virtual serial ports appear. One of these is the `SPI command` and one is the `TEC_UART` pass-thru port. 
+When you connect the test board to a host computer via USB, you should see two virtual serial ports appear. One of these is the `command` and one is the `TEC_UART`, which is a pass-thru port. 
 
 The command port is usually the first one, but not always. The most reliable way to tell is to load the Arduino IDE and 
 look under "Tools->Port" and the command port will show up labeled as `Teensy`. The other new port will be the `TEC_UART` pass-thru.
 
 #### `TEC_UART` pass-thru serial port
 
-This is a direct pass-thru from the virtual USB port on the host to the `TEC_UART` RX and TX pins on the M50 connector. The connector serial port will track whatever the baud rate host serial port is set to.
+This is a direct pass-thru from the virtual USB port on the host to the `TEC_UART` RX and TX pins on the M50 connector. The baud rate on the serial port on the connector will track whatever the baud rate host serial port was set to when last connected to.
 
 Note that the parity and bits are always N,8,1 but this can be changed in the firmware if needed.
 
@@ -37,19 +38,19 @@ You can add additional serial pass-thru ports to the `uart_bridges` array in the
 
 To enable the corresponding USB virtual serial port, change the `USB Type` in `Tools->Board` in the Arduino IDE to `Tripple Serial` before downloading the new code. 
 
-#### `SPI command` serial port   
+#### `command` serial port   
 
-This serial connection accepts commands from the host according to the [API below](#api). These commands can send and receive data on the SPI ports, set the state of a few miscellaneous digital lines on the connector, and add delays.
+This serial connection accepts commands from the host according to the [API below](#api). These commands can send and receive data on the SPI ports, set the state of digital IO lines on the connector, and add delays.
 
 Note that this virtual port will always run at USB maximum speed regardless of what baud rate it is set to on the host. That rate could be as high as 480Mbs, limited mostly by the host's USB bandwidth.
 
-### SPI ports
+### SPI targets
 
-There are a total of 6 SPI command targets and each has an identifying one character index name that is used to address the target in the API. Each SPI target has 4 associated pins: MISO, MOSI, CLK, and CS. The test-board is always the master and MISO is the only pin on each SPI port that is an input to the test-board. Any optional RESET pins are controlled using the[ digital IO commands](#Digital-IO-Commands) below.   
+There are a total of 6 SPI targets and each has an identifying one character tag name that is used to address the target in the API. Each SPI target has 4 associated pins: MISO, MOSI, CLK, and CS. The test-board is always the master and MISO is the only pin on each SPI port that is an input to the test-board. Any optional RESET pins are controlled using the [digital IO set command](#Digital-IO-Set-Request) below.   
 
 Again, remember that the labels on the M50 connector are from the mid-board's point of view! A `DOUT` label on the test board means that pin is an output from the mid-board and an input to the test-board!
 
-SPI targets `1`-`6` are labeled on the M50 connector. 
+SPI targets `1`-`5` are labeled on the M50 connector. 
 
 ![](M50-header.png)  
 
@@ -60,16 +61,17 @@ SPI target `A` is on the aux header with these pins (`MISO` is the only pin inpu
 Note that currently all SPI ports run at 1MHz to reduce the chances of signal quality problems, but this can be increased on any or all ports with changes to the firmware. 
 
 
-
 ## API
 
-The API is a set of ASCII text commands and responses that are sent over the SPI command serial port. Each command/response is a line that is terminated with any combination of carriage returns and/or line feeds. 
+The API is a set of ASCII text commands and responses that are sent over the command serial port. Each command and response is a line of ASCII text. Requests can be terminated with any combination of carriage returns and/or line feeds. Responses are always terminated with a carriage return character (ASCII 13, or '\r') and a newline character (ASCII 10, or '\n').
 
 Every command sent to the test board generates a single response back to the host. All commands are currently synchronous so the responses will always be sent in the same order as the their requests.   
 
 The maximum line length in either direction is currently 255 bytes.
 
 ### Cheat Sheet
+
+If necessary, download the firmware to the board per these [instructions](#Development-environment).
 
 Connect to first USB serial port that shows up on your host. All requests and responses are single line of ASCII text.
 
@@ -88,7 +90,7 @@ Getting back an `E` indicates an error. A comment that tells you why.
 
 All commands are synchronous (for now).
 
-All SPIs run at 1Mhz for now. 
+All SPIs run at 1Mhz (for now). 
 
 ### Target Tags
 
@@ -98,7 +100,7 @@ These 1 char tags are sent with each SPI and IO command to specify which target.
 
 ```
   // Taken directly from schamtics. The numbers here refer to the pin numbers on the Teensy. 
-  // The tags are taken from the labels on the M50 connector diagram except for `A` which is on the AUX header.
+  // The tags are taken from the SPI labels on the M50 connector diagram except for `A` which is on the AUX header.
   
   // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps ) 
   
@@ -117,8 +119,8 @@ These 1 char tags are sent with each SPI and IO command to specify which target.
 ```
   // The tags are arbitrary (but meant to hopefully be mnemonic) 
   // The pin refers to the Teensy pin number. 
-  // io_target( uint8_t pin ) 
 
+  // io_target( uint8_t pin ) 
   // The comment is the label on the pin on the M50 connector
   
   {'N', Io_target( 24 ) },    // ENABLE_-2V0_BIAS
@@ -137,7 +139,7 @@ These 1 char tags are sent with each SPI and IO command to specify which target.
 
 The error response is sent in response to any invalid or malformed line. 
 
-If `DEBUG` is #defined as `1`, then each error response will be preceded by a comment with text describing the error condition.
+If `DEBUG` is `#defined` as `1`, then each error response will be preceded by a comment with text describing the error condition.
 
 All errors should be considered exceptions and indicate either a logic problem or a config mismatch. 
 
@@ -233,3 +235,21 @@ To edit the firmware, you need to follow these steps to install the development 
  ```
 
 Then open the `firmware.ino` file in the `software` section of this repo using the Arduino IDE, make any desired changes, and then click on the right-pointing arrow in the upper left corner of the IDE window. This will upload the new code to the Teensy board and run it. 
+
+## Future directions
+
+### Faster SPI
+
+This board can easily support *much* faster SPI speeds. To change the speeds, edit the last param `spi_targets` structure init. Do note that this board can easily go so fast that my logic analyzer can not keep up (the whole transaction looks like a glitch), so work your way up slowly.
+
+### Async SPI
+
+It is possile to start a new SPI transaction while others are still running. To support this, we would need to add a tag to the SPI reponse so you could see which transfer completed. 
+
+### IO inputs 
+
+We could also read the digital IO pins with a new command.
+
+### Analog inputs
+
+Same as above. Decent ADC, 2 pins are already exposed on the aux header.      
