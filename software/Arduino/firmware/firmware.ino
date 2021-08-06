@@ -15,13 +15,17 @@
  *    Port      = (find the Teensy 4.1 board on this list)
  */
 
+#include <limits.h>   // UINT_MAX
 #include <map>        // Used to store the list of SPI targets by index
 
 // Start slow, we can always speed up later if needed. Global for now, but also possible to break this out per SPI target.
 #define SPI_BPS 1000000    
 
-// Length of maximum line on command port
-#define COMMAND_MAX_LEN 255
+// Max length in bytes of maximum SPI transaction. 
+#define SPI_MAX_LEN 255
+
+// Send comments over the command port that help in debugging problems
+#define DEBUG 1
 
 // This structure defines an SPI port target. 
 // For now all SPI is soft and bitbanged. This is easier since we don't need to worry about picking special pins, and
@@ -130,6 +134,33 @@ struct Spi_target  {
 };
 
 
+// This structure defines an IO port target. 
+
+struct Io_target  { 
+
+  private:
+            
+      uint8_t const _pin; 
+
+     
+  public:
+
+      Io_target( uint8_t pin ) :  _pin{pin}  {};
+        
+      void init() const {
+
+        pinMode( _pin , OUTPUT );
+
+      }
+      
+      void set( boolean bit ) const {
+        digitalWrite( _pin , bit );
+      }
+              
+};
+
+
+
 // A UART bridge connects a virtual USB port to physical UART pins
 // It automatically makes the baud rate on the pins follow the baud rate on the virtual port
 // and bridges data back and forth between the two as long as `service()` is called frequently.
@@ -188,74 +219,208 @@ struct Uart_bridge {
 };
 
 
+
+
+
 struct Command_port {
 
   private :
 
     Stream &_s;
-    const std::map< char , Spi_target > &_spi_targets; 
+    const std::map< char , Spi_target > *_spi_targets; 
+    const std::map< char , Io_target > *_io_targets; 
+
+    static const char COMMENT_CHAR = ';';
 
     static const char COMMAND_DELAY = 'D';
-    static const char RESPONSE_COMPLETED = 'C';
+    static const char RESPONSE_DELAY = 'C';
 
     static const char COMMAND_TRANSFER = 'T';
-    static const char RESPONSE_SUCESS = 'S';
-    static const char RESPONSE_UNKNOWNTARGET = 'U';
+    static const char RESPONSE_TRANSFER = 'S';
+    
+    static const char COMMAND_IO = 'I';
+    static const char RESPONSE_IO = 'H';
     
     static const char RESPONSE_ERROR = 'E';
 
-  
+    static const unsigned LINE_MAX_LEN = (SPI_MAX_LEN*2) + 2; // The biggest command is SPI and has command byte+target byte+data in 2 byte ASCII.
 
-    char inputLine[COMMAND_MAX_LEN+1]; // Leave room for terminating null
-    uint8_t inputLineLen=0;
+    // Copied from https://stackoverflow.com/questions/6457551/hex-character-to-int-in-c
+    // No error checking
+    uint8_t hexdigit2value( const char c ) {
+      uint8_t v = (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10) : (c - 'A' + 10) : (c - '0');
+      return v;
+    }
 
-    void processTransfer( const char *s ) {
+    void send_response( const char c ) {
+      _s.println( c );  
+    }
 
-      const char tag = s[0];    // First byte is the SPI target tag
+    // Send the reponse code followed by the bytes in the buffer as ASCII hex digits
+    void send_response_with_data( const char c , const uint8_t *b, unsigned len ) {
+      _s.print( c );  
 
-      auto const spi_target_touple =  _spi_targets.find( tag );
+      while (len) {
 
-      if (spi_target_touple == _spi_targets.end()) {
+        _s.printf( "%2.2x" , *b );      // Print as base 16 
 
-        // tag not found in spi_targets
+        b++;
+        len--;
+      }
 
-        _s.println( RESPONSE_UNKNOWNTARGET );
+      _s.println();
+      
+    }
+
+    void send_comment( const char *s ) {
+        _s.print( COMMENT_CHAR );
+        _s.println( s );        
+    }
+    
+    void send_response_error( const char *s ) {
+
+      if (DEBUG) {
+        send_comment( s );
+      }
+      send_response( RESPONSE_ERROR );  
+    }
+    
+
+    void processTransferCommand( const char *s , unsigned len ) {
+
+      unsigned pos =0;    // Where we are at parsing the input line
+
+      // First look up the tag
+
+      if (len<=pos) {
+        // Line too short for tag
+        send_response_error("No tag, SPI request too short");
+        return;        
+      }
+
+      const char tag = s[pos++];    // First byte is the SPI target tag
+
+      auto const spi_target_tupple =  _spi_targets->find( tag );
+
+      if (spi_target_tupple == _spi_targets->end()) {
+        // Tag not found in map
+        send_response_error("Bad tag in SPI request");
         return;
       }
+
+      // Get the spi_target from the map tupple (I feel like {key,value} struct would be better than a tupple here, C++?)
+      Spi_target spi_target = spi_target_tupple->second;
+
+      // Next parse the ASCII hex digits to a byte[]
+
+
+      // A more responsible programmer would only allocate the actual number of bytes here, but this parser is already starting to feel bloated and we have plenty of RAM
+      byte mosi_data_buffer[SPI_MAX_LEN];
+
+      unsigned data_buffer_len = 0;
+
+      while (pos<len) {
+
+        if (data_buffer_len >=SPI_MAX_LEN) {
+          send_response_error("More than SPI_MAX_LEN bytes in SPI request");
+          return;
+        }
+
+        // Parse each pair of hex digits
+
+        const char hdigit = s[pos++];
+
+        if (pos>=len) {
+          send_response_error("Incomplete ASCII hex byte in SPI request");
+          return;        
+        }
+
+        if (!isxdigit(  hdigit )) {
+          send_response_error("Invalid high ASCII hex digit in SPI request");
+          return;        
+        }
+
+        const char ldigit = s[pos++];
+
+        if (!isxdigit(  ldigit )) {
+          send_response_error("Invalid low ASCII hex digit in SPI request");
+          return;        
+        }
+
+        const uint8_t b = hexdigit2value( hdigit ) << 4 | hexdigit2value( ldigit ) ;
+
+        Serial.print( b , 16 );
+        
+
+        mosi_data_buffer[ data_buffer_len++ ] = b;
+                        
+      }
+
+      byte miso_data_buffer[data_buffer_len];   // Buffer for incoming SPI bytes
+      Serial.println( data_buffer_len );
+      
+
+      spi_target.transferBuffer( mosi_data_buffer , miso_data_buffer , data_buffer_len );
+
+
+      send_response_with_data( RESPONSE_TRANSFER , miso_data_buffer , data_buffer_len );
+              
+    }
+
+
+    void processDelayCommand( const char *arg , const unsigned len ) {
+      
+      unsigned long delay_ms =0;
+
+      unsigned pos =0;    
+
+      if (pos==len) {
+          send_response_error("Delay request missing millis");
+          return;        
+      }
+      
+      // Parse number of millis
+      while (pos<len) {
+        const char digit = arg[pos];
+        if (!isdigit(digit)) {
+          send_response_error("Bad digit in delay");
+          return;
+        }
+        delay_ms*=10;
+        delay_ms += digit-'0';
+        pos++;
+      }
+
+      delay(delay_ms);
+
+      send_response( RESPONSE_DELAY );
+    }
+
+    char inputLine[LINE_MAX_LEN]; // Leave room for terminating null
+    unsigned inputLineLen=0;
     
-      Spi_target spi_target = spi_target_touple->second;
-
-      const char * spi_buffer = s+1;
-
-      // convert from hex, transfer, convert back
-
-
-      _s.print( RESPONSE_SUCESS );
-      _s.println( "XX" );
-                
-    }
-
-
-    void processDelay( const char *s ) {
-      int d = atoi( s );
-      delay(d);
-      _s.println(RESPONSE_COMPLETED);   // Delay complete.
-    }
-
-    void processLine( char *l ) {
+    void processLine( char *l , unsigned len ) {
 
       switch (l[0]) {
         
         case COMMAND_DELAY:
-            processDelay( l+1 );
+            
+            processDelayCommand( l+1 , len-1 );
             break;
 
         case COMMAND_TRANSFER:
-            processTransfer( l+1 );
+        
+            processTransferCommand( l+1 , len-1 );
+            break;
+
+        case COMMENT_CHAR:
+
+            // This page intionally left blank
             break;
 
         default:
-            _s.println( RESPONSE_ERROR );  // Unknown command
+            send_response_error( "Unknown command");
+            break;
             
       }              
     }
@@ -263,7 +428,13 @@ struct Command_port {
 
   public:
 
-    Command_port( Stream &s , const std::map< char , Spi_target > spi_targets ) : _s{s} , _spi_targets{spi_targets}  {}
+    Command_port( Stream &s , const std::map< char , Spi_target > *spi_targets , const std::map< char , Io_target > *io_targets ) : _s{s} , _spi_targets{spi_targets} , _io_targets{io_targets}  {
+
+      if (DEBUG) {
+        send_comment( "Voyant-test-board firmware (c) 2021 josh.com");
+      }
+      
+    }
 
     void service() {
 
@@ -275,14 +446,12 @@ struct Command_port {
     
           if (inputLineLen>0) {
           
-            inputLine[inputLineLen]=0x00;
-
-            processLine( inputLine );
+            processLine( inputLine , inputLineLen );
             inputLineLen=0;
             
           }
           
-        } else if (inputLineLen<COMMAND_MAX_LEN) {
+        } else if (inputLineLen<LINE_MAX_LEN) {
           
           inputLine[inputLineLen++]=c;      
           
@@ -300,12 +469,25 @@ struct Command_port {
 static const std::map< char , Spi_target > spi_targets = {
 
   // key in the map is the `target` char that the API uses to specify which SPI target
-  // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , ) 
+  // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps ) 
   
   {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS ) }, 
   {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS ) },        // On the aux header on the right side of the PCB
   
 };
+
+
+// Define our IO targets in a map so we can access them by `tag`
+
+static const std::map< char , Io_target > io_targets = {
+
+  // key in the map is the `target` char that the API uses to specify which IO target
+  // io_target( uint8_t pin ) 
+  
+  {'A', Io_target( 24 ) },    // ENABLE_-2V0_BIAS
+  
+};
+
 
 
 // Define any desired UART bridges here
@@ -319,9 +501,7 @@ Uart_bridge uart_bridges[] = {
 
 // Define our command port here
 
-Command_port command_port( Serial , spi_targets );          // The default serial connection to USB host.
-
-
+Command_port command_port( Serial , &spi_targets , &io_targets );          // The default serial connection to USB host.
 
 void init_spi_targets() {
 
@@ -331,6 +511,16 @@ void init_spi_targets() {
   }
   
 }
+
+void init_io_targets() {
+
+  // Hey C++, where is my `std::for_all`?
+  for( auto &io : io_targets) {
+    io.second.init(); 
+  }
+  
+}
+
 
 // Call this periodically to keep the uart bridges fresh
 
@@ -355,13 +545,9 @@ void service_command_port() {
 void setup() {
 
   init_spi_targets();
-  
-  // Note that Teesy best practice is to not do Serial.begin()
-  
-  delay(100);    // Give host a moment to warm up USB 
-  
-  
-    
+  init_io_targets();
+
+  Serial.println( spi_targets.size() );
 }
 
 
