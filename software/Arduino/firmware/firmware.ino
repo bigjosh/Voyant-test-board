@@ -15,7 +15,6 @@
  *    Port      = (find the Teensy 4.1 board on this list)
  */
 
-#include <limits.h>   // UINT_MAX
 #include <map>        // Used to store the list of SPI targets by index
 
 // Start slow, we can always speed up later if needed. Global for now, but also possible to break this out per SPI target.
@@ -284,6 +283,64 @@ struct Command_port {
       }
       send_response( RESPONSE_ERROR );  
     }
+
+    void processIoCommand( const char *s , unsigned len ) {
+
+      unsigned pos =0;    // Where we are at parsing the input line
+
+      // First look up the tag
+
+      if (len<=pos) {
+        // Line too short for tag
+        send_response_error("No tag, IO request too short");
+        return;        
+      }
+
+      const char tag = s[pos++];    // First byte is the SPI target tag
+
+      auto const io_target_tupple =  _io_targets->find( tag );
+
+      if (io_target_tupple == _io_targets->end()) {
+        // Tag not found in map
+        send_response_error("Bad tag in IO request");
+        return;
+      }
+
+      // Get the spi_target from the map tupple (I feel like {key,value} struct would be better than a tupple here, C++?)
+      Io_target io_target = io_target_tupple->second;
+
+      // Next parse the output level 
+
+      if (len<=pos) {
+        // Line too short for level
+        send_response_error("No level, IO request too short");
+        return;        
+      }
+      
+      const char level_char = s[pos++];
+
+      if (len!=pos) {        
+        send_response_error("IO request too long");
+        return;        
+      }
+
+      switch (level_char) {
+
+        case '0': 
+          io_target.set( false ); 
+          break;
+          
+        case '1': 
+          io_target.set( true ); 
+          break;
+
+        default:
+          send_response_error("Invalid level in IO request");
+          return;        
+        
+      }
+
+    }    
     
 
     void processTransferCommand( const char *s , unsigned len ) {
@@ -367,7 +424,8 @@ struct Command_port {
               
     }
 
-
+    
+    // Note that delay will overflow if greater than ULONG_MAX
     void processDelayCommand( const char *arg , const unsigned len ) {
       
       unsigned long delay_ms =0;
@@ -388,6 +446,7 @@ struct Command_port {
         }
         delay_ms*=10;
         delay_ms += digit-'0';
+
         pos++;
       }
 
@@ -412,6 +471,12 @@ struct Command_port {
         
             processTransferCommand( l+1 , len-1 );
             break;
+
+        case COMMAND_IO:
+        
+            processIoCommand( l+1 , len-1 );
+            break;
+            
 
         case COMMENT_CHAR:
 
@@ -547,7 +612,6 @@ void setup() {
   init_spi_targets();
   init_io_targets();
 
-  Serial.println( spi_targets.size() );
 }
 
 
