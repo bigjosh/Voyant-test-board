@@ -45,7 +45,7 @@ Note that this virtual port will always run at USB maximum speed regardless of w
 
 ### SPI ports
 
-There are a total of 7 SPI command targets and each has an identifying one character index name that is used to address the target in the API. Each SPI target has 4 associated pins: MISO, MOSI, CLK, and CS. The test-board is always the master and MISO is the only pin on each SPI port that is an input to the test-board. Any optional RESET pins are controlled using the[ digital IO commands](#Digital-IO-Commands) below.   
+There are a total of 6 SPI command targets and each has an identifying one character index name that is used to address the target in the API. Each SPI target has 4 associated pins: MISO, MOSI, CLK, and CS. The test-board is always the master and MISO is the only pin on each SPI port that is an input to the test-board. Any optional RESET pins are controlled using the[ digital IO commands](#Digital-IO-Commands) below.   
 
 Again, remember that the labels on the M50 connector are from the mid-board's point of view! A `DOUT` label on the test board means that pin is an output from the mid-board and an input to the test-board!
 
@@ -57,9 +57,8 @@ SPI target `A` is on the aux header with these pins (`MISO` is the only pin inpu
 
 ![](aux-header.png)
 
-Note that currently all SPI ports run at 2MHz to reduce the chances of signal quality problems, but this can be increased on any or all ports with changes to the firmware. 
+Note that currently all SPI ports run at 1MHz to reduce the chances of signal quality problems, but this can be increased on any or all ports with changes to the firmware. 
 
- 
 
 
 ## API
@@ -68,14 +67,11 @@ The API is a set of ASCII text commands and responses that are sent over the SPI
 
 Every command sent to the test board generates a single response back to the host. All commands are currently synchronous so the responses will always be sent in the same order as the their requests.   
 
-
 The maximum line length in either direction is currently 255 bytes.
 
-### SPI Commands
+### Cheat Sheet
 
-#### Cheat Sheet
-
-Connect to first USB serial port. All requests and responses are single line of ASCII text.  
+Connect to first USB serial port that shows up on your host. All requests and responses are single line of ASCII text.
 
 `T1771FF5600` - `T`= Transfer command, `1`= Tag for SPI1 target, sends the three bytes `77`h, `1f`h, `f5`h. Returns with...
 `S567483` - `S` - Transfer completed, where `56`h, `74`h, and `83`h are the bytes read from the SPI. 
@@ -94,9 +90,11 @@ All commands are synchronous (for now).
 
 All SPIs run at 1Mhz for now. 
 
-#### Target Tags
+### Target Tags
 
-##### SPI target tags
+These 1 char tags are sent with each SPI and IO command to specify which target. The actual tag char is arbitrary, but I tried to pick ones that make sense and are easy to remember.    
+
+#### SPI target tags
 
 ```
   // Taken directly from schamtics. The numbers here refer to the pin numbers on the Teensy. 
@@ -114,7 +112,7 @@ All SPIs run at 1Mhz for now.
 ```
 
 
-##### IO target tags
+#### IO target tags
 
 ```
   // The tags are arbitrary (but meant to hopefully be mnemonic) 
@@ -133,7 +131,15 @@ All SPIs run at 1Mhz for now.
   {'T', Io_target(  5 ) },    // TEC_ENABLE_N   (TEC_UART)
 ```
 
+### Protocol
+
 #### Omnibus Error Response
+
+The error response is sent in response to any invalid or malformed line. 
+
+If `DEBUG` is #defined as `1`, then each error response will be preceded by a comment with text describing the error condition.
+
+All errors should be considered exceptions and indicate either a logic problem or a config mismatch. 
 
 ##### Format 
 
@@ -148,15 +154,7 @@ All SPIs run at 1Mhz for now.
 E
 ```
 
-##### Description
-
-The error response is sent in response to any invalid or malformed request. 
-
-If `DEBUG` is #defined as `1`, then each error response will be preceded by a comment with text describing the error condition.
-
-All errors should be considered exceptions and indicate either a logic problem or a config mismatch. 
-
-#### Transfer Request
+#### SPI Transfer Request
 
 Sends a series of bytes to an SPI target and simultaneously reads the same number of bytes from that target.
 
@@ -165,7 +163,7 @@ Sends a series of bytes to an SPI target and simultaneously reads the same numbe
 | Content | Bytes | Desc |
 | - | - | - | 
 | `T` | 1 | Specifies transfer request |
-| tag | 1 | Specifies SPI target port. Can be `1`-`6` or `A` |  
+| tag | 1 | Specifies SPI target port. From [SPI target tags list](#SPI-target-tags) above. |  
 | data | 2,4,6,... | Variable length of bytes to send, each as a two digit ASCII hex number |
 
 ##### Example
@@ -179,55 +177,45 @@ Sends the bytes 0x0c, 0x0a, 0x0f, 0x0e , 0x90 to SPI port target `A` (which is o
 
 | Content | Bytes | Desc |
 | - | - | - | 
-| `S` | 1 | Specifies transfer success response |
-| tag | 1 | Specifies SPI target port. Can be `1`-`6` or `A` |  
+| `S` | 1 | Specifies transfer success response |  
 | data | 2,4,6,... | Variable length of bytes received, each as a two digit ASCII hex number. |
 
 The number of bytes received will always be equal to the number sent in the corresponding transfer request command. 
 
-On failure:
-| Content | Bytes | Desc |
-| - | - | - | 
-| `E` | 1 | Specifies transfer error response |
-| tag | 1 | Specifies SPI target port. Can be `1`-`6` or `A` |  
-| reason | 1 | Reason for the failure |
-
-Failure reasons:
-
-| Byte | Reason |
-| - | - | - | 
-| `T` | Tag not found |
-| `F` | Incomplete final byte (the number of digits in the data section was odd) |  
-| `I` | Invalid digit (a digit in the data section was not a valid hex digit) |
-
-
-  
-
-
-
-
 For now, all SPI transfers are synchronous so the response will immediately follow the request.  
+  
 
+#### Digital IO Set Request
 
-, you will get back the byte `S` followed by a variable number of two digit ASCII hex numbers continaing the bytes read from the SPI target. 
+Sets the output voltage on one of the IO pins. 
 
-
-
-
+##### Request Format:
 
 | Content | Bytes | Desc |
 | - | - | - | 
-| `` | 1 | Specifies transfer command |
-| tag | 1 | Specifies SPI target port. Can be `1`-`6` or `A` |  
+| `I` | 1 | Specifies IO Set command |
+| tag | 1 | Specifies target IO port. From [IO target tags list](#IO-target-tags) above. |  
 | data | 2,4,6,... | Variable length of bytes to send, each as a two digit ASCII hex number |
-  
 
 
-### Digital IO Commands
+##### IO Response
 
-### Comments
+| Content | Bytes | Desc |
+| - | - | - | 
+| `H` | 1 | Specifies IO set success response |  
 
-### Interface control commands
+#### Delay Request
+
+Adds a delay while processing requests. 
+
+##### Request Format:
+
+| Content | Bytes | Desc |
+| - | - | - | 
+| `D` | 1 | Specifies IO Set command |
+| millis | variable | Specifies number of milliseconds to pause. |  
+
+Note that millis will overflow if number specified in command is larger than 32 bits. 
 
 ## Development environment
 
