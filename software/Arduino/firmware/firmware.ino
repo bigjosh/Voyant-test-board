@@ -130,9 +130,25 @@ struct Spi_target  {
   
                 // CLK idle HIGH, Data sampled on rising edge 
 
-
+                delayNanoseconds( _ns_per_cphase );                    
                 digitalWrite( _clk, LOW );
+                
+                digitalWrite( _mosi , b & bit_mask );                                                                
+                delayNanoseconds( _ns_per_cphase ); 
+                
+                in_val |= digitalRead( _miso ); 
+                digitalWrite( _clk, HIGH );                                      
+              
+              };
+              break;
+
+            case 5: {
+  
+                // CLK idle HIGH, I made this up so that MOSI is valid on both edges. You need a logic analyzer then to see whats going on. 
+
                 digitalWrite( _mosi , b & bit_mask );                                                
+                delayNanoseconds( _ns_per_cphase );                 
+                digitalWrite( _clk, LOW );                
                 delayNanoseconds( _ns_per_cphase ); 
                 in_val |= digitalRead( _miso ); 
                 digitalWrite( _clk, HIGH );                                      
@@ -140,6 +156,7 @@ struct Spi_target  {
               
               };
               break;
+              
             
           }
 
@@ -158,14 +175,16 @@ struct Spi_target  {
         
       void init() const {
 
-        digitalWrite( _mosi , LOW );
         pinMode( _mosi , OUTPUT );
+        digitalWrite( _mosi , LOW );
 
-        digitalWrite( _miso , LOW );  // Disable pull-up
         pinMode( _miso , INPUT );
     
-        digitalWrite( _cs , HIGH );   // ~CS idle HIGH
         pinMode( _cs  , OUTPUT );
+        digitalWrite( _cs , HIGH );   // ~CS idle HIGH
+        
+
+        pinMode( _clk , OUTPUT ); 
 
         if (  _mode == 0 || _mode == 1 ) {
 
@@ -177,7 +196,6 @@ struct Spi_target  {
           
         }
 
-        pinMode( _clk , OUTPUT ); 
           
       }
 
@@ -288,9 +306,6 @@ struct Uart_bridge {
       }
 
 };
-
-
-
 
 
 struct Command_port {
@@ -608,7 +623,7 @@ static const std::map< char , Spi_target > spi_targets = {
   // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps , uint8_t mode  ) 
   
   {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS , 2 ) },    // SPI1-AD7490, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7490.pdf
-  {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS , 2 ) },    // SPI2-AD7124, CLK idle HIGH, Sample on FALL?, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7124-4.pdf
+  {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS , 3 ) },    // SPI2-AD7124, CLK idle HIGH, Sample on RISE, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7124-4.pdf
   {'3', Spi_target( 26 , 12 , 13 ,  0 , SPI_BPS , 0 ) },  
   {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS , 0 ) }, 
   {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS , 0 ) }, 
