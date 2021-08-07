@@ -236,6 +236,33 @@ To edit the firmware, you need to follow these steps to install the development 
 
 Then open the `firmware.ino` file in the `software` section of this repo using the Arduino IDE, make any desired changes, and then click on the right-pointing arrow in the upper left corner of the IDE window. This will upload the new code to the Teensy board and run it. 
 
+### Examples
+
+Copy and paste these into a `putty` window connected to the command port. 
+
+#### SPI2 (AD7124)
+
+```
+T2FFFFFFFFFFFFFFFF
+T2490000
+```
+
+First line resets the chip. It returns...
+
+```
+Sxxxxxxxxxxxxxxxx
+```
+...which can be ignored. 
+
+
+Second line uses the read command (high bits 0b01xxxxxx) to reads two bytes from `CHANNEL_0` register (0x09 or 0bxx001001) which has a reset value of `0x8001`. Note the two trailing `00` bytes are only there to clock in the result.  It should return...
+
+```
+S008001
+```
+
+The leading `00` byte is always there in this chip, which clocks out 0's while it reads the `comminications` register from the master. The `communications` register always the first byte sent after this chip is selected.
+
 ## Future directions
 
 ### Faster SPI
@@ -244,7 +271,7 @@ This board can easily support *much* faster SPI speeds. To change the speeds, ed
 
 ### Async SPI
 
-It is possile to start a new SPI transaction while others are still running. To support this, we would need to add a tag to the SPI reponse so you could see which transfer completed. 
+It is possible to start a new SPI transaction while others are still running. To support this, we would need to add a tag to the SPI response so you could see which transfer completed. 
 
 ### IO inputs 
 
