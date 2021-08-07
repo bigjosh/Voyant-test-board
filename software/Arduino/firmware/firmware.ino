@@ -38,8 +38,11 @@ struct Spi_target  {
       uint8_t const _miso;       // Master IN, Slave OUT pin      
       uint8_t const _clk;        // CLock pin
       uint8_t const _cs;         // Chip Select pin
-
+      
       uint32_t const _ns_per_cphase;        // Nanoseconds per clock phase (sets max speed)
+
+      uint8_t const _mode;       // SPI mode 0-3. Info here: https://www.analog.com/en/analog-dialogue/articles/introduction-to-spi-interface.html
+      
 
       // Compute the delay in ns between clock phases for a given SPI bits per second
       uint32_t bps_to_npc( uint32_t const bits_per_s ) {
@@ -70,17 +73,76 @@ struct Spi_target  {
         uint8_t in_val =0;
         uint8_t bit_mask = 0b10000000;      // MSB first is standard 
 
+
         do {
 
-          digitalWrite( _mosi , b & bit_mask );
-          delayNanoseconds( _ns_per_cphase );                    
-          digitalWrite( _clk, HIGH );
+
+          // I know this is verbose, but it is clear and I get easily confused looking at these silly modes
           
-          in_val <<=1;
-          in_val |= digitalRead( _miso ); 
-          
-          delayNanoseconds( _ns_per_cphase );                    
-          digitalWrite( _clk, LOW );
+          switch (_mode) {
+               
+            in_val <<=1;
+            
+            case 0: {
+  
+                // CLK idle low, Data sampled on rising edge 
+  
+                digitalWrite( _mosi , b & bit_mask );                
+                delayNanoseconds( _ns_per_cphase );  
+                in_val |= digitalRead( _miso );                                   
+                digitalWrite( _clk, HIGH );
+                delayNanoseconds( _ns_per_cphase );                    
+                digitalWrite( _clk, LOW );                                      
+              
+              };
+              break;
+
+            case 1: {
+  
+                // CLK idle low, Data sampled on falling edge 
+
+                digitalWrite( _clk, HIGH );              
+                digitalWrite( _mosi , b & bit_mask );                
+                delayNanoseconds( _ns_per_cphase );  
+                in_val |= digitalRead( _miso );                                   
+                digitalWrite( _clk, LOW );                                      
+                delayNanoseconds( _ns_per_cphase );                    
+              
+              };
+              break;
+              
+  
+            case 2: {
+  
+                // CLK idle HIGH, Data sampled on falling edge
+  
+                digitalWrite( _mosi , b & bit_mask );                                
+                delayNanoseconds( _ns_per_cphase );                    
+                in_val |= digitalRead( _miso ); 
+                digitalWrite( _clk, LOW );
+                delayNanoseconds( _ns_per_cphase );                    
+                digitalWrite( _clk, HIGH );                                      
+              
+              };
+              break;
+  
+            case 3: {
+  
+                // CLK idle HIGH, Data sampled on rising edge 
+
+
+                digitalWrite( _clk, LOW );
+                digitalWrite( _mosi , b & bit_mask );                                                
+                delayNanoseconds( _ns_per_cphase ); 
+                in_val |= digitalRead( _miso ); 
+                digitalWrite( _clk, HIGH );                                      
+                delayNanoseconds( _ns_per_cphase );                    
+              
+              };
+              break;
+            
+          }
+
 
           bit_mask >>= 1;
 
@@ -92,7 +154,7 @@ struct Spi_target  {
 
   public:
 
-      Spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps ) :  _mosi{mosi} , _miso{miso} , _clk{clk} , _cs{ cs } , _ns_per_cphase{ bps_to_npc(bps) }  {};
+      Spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps , uint8_t mode ) :  _mosi{mosi} , _miso{miso} , _clk{clk} , _cs{ cs } , _ns_per_cphase{ bps_to_npc(bps)} , _mode{mode}   {};
         
       void init() const {
 
@@ -101,12 +163,22 @@ struct Spi_target  {
 
         digitalWrite( _miso , LOW );  // Disable pull-up
         pinMode( _miso , INPUT );
-
-        digitalWrite( _clk , LOW );   // Clock idle LOW
-        pinMode( _clk , OUTPUT ); 
     
         digitalWrite( _cs , HIGH );   // ~CS idle HIGH
         pinMode( _cs  , OUTPUT );
+
+        if (  _mode == 0 || _mode == 1 ) {
+
+          digitalWrite( _clk , LOW );   // Clock idle LOW
+          
+        } else {
+
+          digitalWrite( _clk , HIGH );   // Clock idle HIGH
+          
+        }
+
+        pinMode( _clk , OUTPUT ); 
+          
       }
 
       // Transfer
@@ -406,15 +478,11 @@ struct Command_port {
 
         const uint8_t b = hexdigit2value( hdigit ) << 4 | hexdigit2value( ldigit ) ;
 
-        Serial.print( b , 16 );
-        
-
         mosi_data_buffer[ data_buffer_len++ ] = b;
                         
       }
 
       byte miso_data_buffer[data_buffer_len];   // Buffer for incoming SPI bytes
-      Serial.println( data_buffer_len );
       
 
       spi_target.transferBuffer( mosi_data_buffer , miso_data_buffer , data_buffer_len );
@@ -537,15 +605,15 @@ static const std::map< char , Spi_target > spi_targets = {
   // Taken directly from schamtics. The numbers here refer to the pin numbers on the Teensy. 
   // The tags are taken from the labels on the M50 connector diagram except for `A` which is on the AUX header.
   
-  // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps ) 
+  // spi_target( uint8_t mosi, uint8_t miso, uint8_t clk , uint8_t cs , uint32_t bps , uint8_t mode  ) 
   
-  {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS ) }, 
-  {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS ) }, 
-  {'3', Spi_target( 26 , 12 , 13 ,  0 , SPI_BPS ) }, 
-  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS ) }, 
-  {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS ) }, 
+  {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS , 2 ) },    // SPI1-AD7490, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7490.pdf
+  {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS , 2 ) },    // SPI2-AD7124, CLK idle HIGH, Sample on FALL?, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7124-4.pdf
+  {'3', Spi_target( 26 , 12 , 13 ,  0 , SPI_BPS , 0 ) },  
+  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS , 0 ) }, 
+  {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS , 0 ) }, 
   
-  {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS ) },        // On the aux header on the right side of the PCB
+  {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS , 0 ) },        // On the aux header on the right side of the PCB
   
 };
 
