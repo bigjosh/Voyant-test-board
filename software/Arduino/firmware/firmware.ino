@@ -73,23 +73,28 @@ struct Spi_target  {
         uint8_t in_val =0;
         uint8_t bit_mask = 0b10000000;      // MSB first is standard 
 
-
         do {
 
 
           // I know this is verbose, but it is clear and I get easily confused looking at these silly modes
+          // Note that the Analog Devices "Intro to SPI" is just wrong...
+          // https://electronics.stackexchange.com/questions/580610/is-this-diagram-for-spi-mode-2-wrong
+          // ..so I used this reference instead...
+          // http://dlnware.com/theory/SPI-Transfer-Modes
           
           switch (_mode) {
-               
-            in_val <<=1;
-            
+                           
             case 0: {
   
                 // CLK idle low, Data sampled on rising edge 
   
                 digitalWrite( _mosi , b & bit_mask );                
                 delayNanoseconds( _ns_per_cphase );  
-                in_val |= digitalRead( _miso );                                   
+
+                if (digitalRead( _miso )) {
+                  in_val |= bit_mask;  
+                }
+                                
                 digitalWrite( _clk, HIGH );
                 delayNanoseconds( _ns_per_cphase );                    
                 digitalWrite( _clk, LOW );                                      
@@ -104,7 +109,11 @@ struct Spi_target  {
                 digitalWrite( _clk, HIGH );              
                 digitalWrite( _mosi , b & bit_mask );                
                 delayNanoseconds( _ns_per_cphase );  
-                in_val |= digitalRead( _miso );                                   
+
+                if (digitalRead( _miso )) {
+                  in_val |= bit_mask;  
+                }
+                                
                 digitalWrite( _clk, LOW );                                      
                 delayNanoseconds( _ns_per_cphase );                    
               
@@ -116,9 +125,13 @@ struct Spi_target  {
   
                 // CLK idle HIGH, Data sampled on falling edge
   
-                digitalWrite( _mosi , b & bit_mask );                                
-                delayNanoseconds( _ns_per_cphase );                    
-                in_val |= digitalRead( _miso ); 
+                digitalWrite( _mosi , b & bit_mask );
+                delayNanoseconds( _ns_per_cphase );  
+
+                if (digitalRead( _miso )) {
+                  in_val |= bit_mask;  
+                }
+                
                 digitalWrite( _clk, LOW );
                 delayNanoseconds( _ns_per_cphase );                    
                 digitalWrite( _clk, HIGH );                                      
@@ -136,7 +149,10 @@ struct Spi_target  {
                 digitalWrite( _mosi , b & bit_mask );                                                                
                 delayNanoseconds( _ns_per_cphase ); 
                 
-                in_val |= digitalRead( _miso ); 
+                if (digitalRead( _miso )) {
+                  in_val |= bit_mask;  
+                }
+                
                 digitalWrite( _clk, HIGH );                                      
               
               };
@@ -159,7 +175,6 @@ struct Spi_target  {
               
             
           }
-
 
           bit_mask >>= 1;
 
