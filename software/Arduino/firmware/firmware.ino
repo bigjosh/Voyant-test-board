@@ -44,10 +44,10 @@ static const std::map< char , Spi_target > spi_targets = {
   {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS , 2 ) },    // SPI1-AD7490, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7490.pdf
   {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS , 3 ) },    // SPI2-AD7124, CLK idle HIGH, Sample on RISE, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7124-4.pdf
   {'3', Spi_target( 26 ,  1 , 27 ,  0 , SPI_BPS , 2 ) },    // SPI3-AD5766, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/ad5766-5767.pdf
-  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS , 2 ) },    // SPI3-AD5766, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/ad5766-5767.pdf
-  {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS , 0 ) }, 
+  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS , 2 ) },    // SPI4-AD5766, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/ad5766-5767.pdf
+  {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS , 2 ) },    // SPI5-AD5142, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD5122_5142.pdf
   
-  {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS , 0 ) },        // On the aux header on the right side of the PCB
+  {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS , 0 ) },        // On the aux header on the right side of the PCB - For galvo. 
   
 };
 
