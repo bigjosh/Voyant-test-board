@@ -42,3 +42,21 @@ Minimum time between a reset and the subsequent successful write is typically 25
 
 100ns typ RESET2 pulse width low
 100ns typ RESET2 pulse activation time
+
+## SPI 5 - AD5142
+
+Looks like CLK idle HIGH, sampled on LOW - so Mode 2
+
+Chip is WRITE only. DOUT is only for daisy chain. 
+
+https://www.analog.com/media/en/technical-documentation/data-sheets/AD5122_5142.pdf
+
+"Data is loaded in at the SCLK falling edge transition, as
+shown in Figure 3 and Figure 4. "
+
+![image](https://user-images.githubusercontent.com/5520281/128621491-51e2cff3-53d7-482e-9348-e0ebac47a23f.png)
+
+
+
+
+
