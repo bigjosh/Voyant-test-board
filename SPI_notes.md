@@ -1,3 +1,19 @@
+## SPI1 - AD7490
+
+CLK idle HIGH, sample on CS falling edge?
+
+>The remaining
+>address bits and data bits are then clocked out by subsequent
+>SCLK falling edges, beginning with the second address bit,
+>ADD2. Thus, the first SCLK falling edge on the serial clock has
+>the ADD3 address bit provided and also clocks out address bit
+>ADD2. The final bit in the data transfer is valid on the 16th
+>falling edge, having being clocked out on the previous (15th)
+>falling edge. 
+
+https://www.analog.com/media/en/technical-documentation/data-sheets/AD7490.pdf
+
+![image](https://user-images.githubusercontent.com/5520281/128620922-b7b4e311-b467-48be-b99b-3b708226ea6d.png)
 
 
 ## SPI2 - AD7124
