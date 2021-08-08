@@ -43,8 +43,8 @@ static const std::map< char , Spi_target > spi_targets = {
   
   {'1', Spi_target( 33 , 32 , 31 , 30 , SPI_BPS , 2 ) },    // SPI1-AD7490, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7490.pdf
   {'2', Spi_target( 22 , 21 , 20 , 19 , SPI_BPS , 3 ) },    // SPI2-AD7124, CLK idle HIGH, Sample on RISE, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/AD7124-4.pdf
-  {'3', Spi_target( 26 , 12 , 13 ,  0 , SPI_BPS , 0 ) },  
-  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS , 0 ) }, 
+  {'3', Spi_target( 26 ,  1 , 27 ,  0 , SPI_BPS , 2 ) },    // SPI3-AD5766, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/ad5766-5767.pdf
+  {'4', Spi_target( 11 , 12 , 13 , 10 , SPI_BPS , 2 ) },    // SPI3-AD5766, CLK idle HIGH, Sample on FALL, MSb first - https://www.analog.com/media/en/technical-documentation/data-sheets/ad5766-5767.pdf
   {'5', Spi_target( 17 , 16 , 15 , 14 , SPI_BPS , 0 ) }, 
   
   {'A', Spi_target(  4 ,  6 ,  2 , 37 , SPI_BPS , 0 ) },        // On the aux header on the right side of the PCB
@@ -68,7 +68,7 @@ static const std::map< char , Io_target > io_targets = {
   
   {'3', Io_target(  3 ) },    // AD5766_A_RST_N (SPI3)
   {'4', Io_target(  9 ) },    // AD5766_B_RST_N (SPI4)
-  {'5', Io_target( 16 ) },    // POT_RST_N      (SPI5)
+  {'5', Io_target( 18 ) },    // POT_RST_N      (SPI5)
 
   {'T', Io_target(  5 ) },    // TEC_ENABLE_N   (TEC_UART)
 

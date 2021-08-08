@@ -243,25 +243,57 @@ Copy and paste these into a `putty` window connected to the command port.
 #### SPI2 (AD7124)
 
 ```
+; Reset command
 T2FFFFFFFFFFFFFFFF
+; Read command (high bits 0b01xxxxxx) on `CHANNEL_0` register ((0x09 or 0bxx001001). Trailing `0000` clocks out the result.   
 T2490000
+;The above command should generate a response `S008001` where `00` is always the first byte on this chip,
+; and the `8001` is the reset value of the register.   
 ```
 
-First line resets the chip. It returns...
+#### SPI3 & SPI4 (AD5766)
+
+Note these commands address `AD5766-A` on SPI3, but will work on `AD5766-B` on SPI4 if you change all the targets to `4`.
 
 ```
-Sxxxxxxxxxxxxxxxx
+; ~Reset=LOW (resets chip)
+I31
+; T10=100ns, so 1ms more than enough
+D1
+; ~Reset=HIGH
+I31
+; "Minimum time between a reset and the subsequent successful write is typically 25 ns."
+D1
+; "Always issue a software reset before writing to the span register."
+; Full Software reset = 0b0111 0000 0001 0010 0011 0100
+T3701234
+; "outputs are clamped to ground...until a valid write sequence is made to the span register"
+; Set span Full Scale , -10V to 10V = 0b0100 0000 0000 0000 0001 0110
+T3400017
+;Trigger scope
+D1
+; Make an interesting ramp on OUT0....
+; Write 16 bit value to to DAC register 0 = 0010 0000 vvvv vvvv vvvv vvvv 
+T3201111
+D1
+T3202222
+D2
+T3203333
+D3
+T3205555
+D5
+T320AAAA
+D10
+T320FFFF
+D16
+;Bring it back home
+T3200000
+;Go check your osciliscope
 ```
-...which can be ignored. 
 
 
-Second line uses the read command (high bits 0b01xxxxxx) to reads two bytes from `CHANNEL_0` register (0x09 or 0bxx001001) which has a reset value of `0x8001`. Note the two trailing `00` bytes are only there to clock in the result.  It should return...
+![](AD5766-example-trace.png)
 
-```
-S008001
-```
-
-The leading `00` byte is always there in this chip, which clocks out 0's while it reads the `comminications` register from the master. The `communications` register always the first byte sent after this chip is selected.
 
 ## Future directions
 
