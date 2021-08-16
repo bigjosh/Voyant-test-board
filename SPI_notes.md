@@ -15,6 +15,15 @@ https://www.analog.com/media/en/technical-documentation/data-sheets/AD7490.pdf
 
 ![image](https://user-images.githubusercontent.com/5520281/128620922-b7b4e311-b467-48be-b99b-3b708226ea6d.png)
 
+We always write 16 bits and at the same time read the 16 bit result of the previous conversion. 
+
+![image](https://user-images.githubusercontent.com/5520281/129519296-35390252-b687-4a90-93a0-1436824a5ece.png)
+
+WRITE must be 1. PMx should be 1 (on). Shadow 0 for testing. WEAK is interesting. If 1 then the first bit of the address of previous convversion appears on DOUT when CS goes low. 
+
+So for testing we will send 0b10aaaa110101. We will change aaaa and see if the aaaa changes in the next readout. 
+
+
 
 ## SPI2 - AD7124
 
