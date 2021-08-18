@@ -19,10 +19,12 @@ We always write 16 bits and at the same time read the 16 bit result of the previ
 
 ![image](https://user-images.githubusercontent.com/5520281/129519296-35390252-b687-4a90-93a0-1436824a5ece.png)
 
-WRITE must be 1. PMx should be 1 (on). Shadow 0 for testing. WEAK is interesting. If 1 then the first bit of the address of previous convversion appears on DOUT when CS goes low. 
+WRITE must be 1. PMx should both be 1 (power on). Shadow 0 for testing. WEAK is interesting. If 1 then the first bit of the address of previous convversion appears on DOUT when CS goes low - we want this so we always get the address back on evvery conversion. 
+
+You initialize the interface by sending two transactions in a row of 0xFFFF each....
+![image](https://user-images.githubusercontent.com/5520281/129949930-3144aa47-48ca-4dd5-a414-fa349dcbd214.png)
 
 So for testing we will send 0b10aaaa110101. We will change aaaa and see if the aaaa changes in the next readout. 
-
 
 
 ## SPI2 - AD7124
