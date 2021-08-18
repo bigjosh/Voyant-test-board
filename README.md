@@ -240,12 +240,36 @@ Then open the `firmware.ino` file in the `software` section of this repo using t
 
 Copy and paste these into a `putty` window connected to the command port. 
 
+#### SPI1 (AD7490)
+
+```
+;First send two transactions with DIN high to reset all the state bits
+T1FFFF
+T1FFFF
+;Read a sample from address 0 ( 0b10aa aa11 0101 with aaaa=0000. Note the trailing 0 is ignored, just there to clock out final 4 bits )
+; Send twice for this demo since the response for a command is clocked out on the NEXT request
+T18350
+T18350
+; The above command should generate a response `S10xxx` where `0` is the address we requested above and xxx is the reading
+;Read a sample from address 1 ( 0b10aa aa11 0101 with aaaa=0001. Note the trailing 0 is ignored, just there to clock out final 4 bits )
+; Send twice for this demo since the response for a command is clocked out on the NEXT request
+T18750
+T18750
+; The above command should generate a response `S11xxx` where `1` is the address we requested above and xxx is the reading
+;Read a sample from address 15 ( 0b10aa aa11 0101 with aaaa=1111. Note the trailing 0 is ignored, just there to clock out final 4 bits )
+; Send twice for this demo since the response for a command is clocked out on the NEXT request
+T1BF50
+T1BF50
+;The above command should generate a response `S1fxxx` where `1` is the address we requested above and xxx is the reading
+; With an AREF of 2.5V and an AA battery attached to input #15, I get a response of  Sf42a 
+```
+
 #### SPI2 (AD7124)
 
 ```
-; Reset command
+;Reset command
 T2FFFFFFFFFFFFFFFF
-; Read command (high bits 0b01xxxxxx) on `CHANNEL_0` register ((0x09 or 0bxx001001). Trailing `0000` clocks out the result.   
+;Read command (high bits 0b01xxxxxx) on `CHANNEL_0` register ((0x09 or 0bxx001001). Trailing `0000` clocks out the result.   
 T2490000
 ;The above command should generate a response `S008001` where `00` is always the first byte on this chip,
 ; and the `8001` is the reset value of the register.   
@@ -256,11 +280,11 @@ T2490000
 Note these commands address `AD5766-A` on SPI3, but will work on `AD5766-B` on SPI4 if you change all the targets to `4`.
 
 ```
-; ~Reset=LOW (resets chip)
+;~Reset=LOW (resets chip)
 I31
 ; T10=100ns, so 1ms more than enough
 D1
-; ~Reset=HIGH
+;~Reset=HIGH
 I31
 ; "Minimum time between a reset and the subsequent successful write is typically 25 ns."
 D1
