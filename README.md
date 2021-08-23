@@ -345,7 +345,7 @@ This example generates a 1 second wide, 3.3 volt high square pulse on pin D39 of
 
 ```
 ; Assumes D39 is at 0 volts (power up state)
-;Set voltage on D39 to 1 volts 
+;Set voltage on D39 to 3.3 volts 
 I31
 ;Delay 1 second
 D1000
