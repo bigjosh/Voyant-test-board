@@ -60,6 +60,11 @@ SPI target `A` is on the aux header with these pins (`MISO` is the only pin inpu
 
 Note that currently all SPI ports run at 1MHz to reduce the chances of signal quality problems, but this can be increased on any or all ports with changes to the firmware. 
 
+### Digital out targets
+
+These are general purpose digital pins that can output either 0 volts or 3.3 volts. They are each capable of sinking or sourcing up to 10mA. Digital outputs are all initialized to `0` on power up. 
+
+They are listed in the [IO target tags table](#IO-target-tags) and are controlled using the [digital IO set command](#Digital-IO-Set-Request) below. 
 
 ## API
 
@@ -75,20 +80,25 @@ If necessary, download the firmware to the board per these [instructions](#Devel
 
 Connect to first USB serial port that shows up on your host. All requests and responses are single line of ASCII text.
 
-`T1771FF5600` - `T`= Transfer command, `1`= Tag for SPI1 target, sends the three bytes `77`h, `1f`h, `f5`h. Returns with...
-`S567483` - `S` - Transfer completed, where `56`h, `74`h, and `83`h are the bytes read from the SPI. 
+`T1771FF5600` where "T"=Transfer rerquest, "1"= the tag for SPI1 target, sends the three bytes 77h, 1fh, f5h. Returns with...
+
+`S567483` where "S"=Transfer response and 56h, 74h, and 83h are the bytes read from the SPI. 
 
 `;This is a comment becuase it starts with semicolon. Send or ignore me.` 
 
-`IN1` - `I` = Set digital IO command, `N`=Tag for `ENABLE_-2V0_BIAS` pin, `1` = Set pin HIGH. Returns with...
-`H` - `H` =  Set completed.  
+`IN1` where "I" = Set digital IO pin request, "N"= the tag for `ENABLE_-2V0_BIAS` pin, "1" = Set pin HIGH. Returns with...
 
-`D1000` - `D` = Delay command, `1000` = 1000 milliseconds. Returns (after the delay) with...
-`C` - `C` = Delay completed. 
+`H` where "H" = Set completed.  
+
+`D1000` where "D" = Delay command and "1000" = 1000 milliseconds. Returns (after the delay) with...
+
+`C` where "C" = Delay completed. 
 
 Getting back an `E` indicates an error. A comment that tells you why.
 
 All commands are synchronous (for now).
+
+All SPI and digital IO signals are 3.3 volts.
 
 All SPIs run at 1Mhz (for now). 
 
@@ -117,10 +127,11 @@ These 1 char tags are sent with each SPI and IO command to specify which target.
 #### IO target tags
 
 ```
-  // The tags are arbitrary (but meant to hopefully be mnemonic) 
+  // key in the map is the `target` char that the API uses to specify which IO target. 
+  // The tags are arbitrary (but meant to hopefully be mnemonic)   
   // The pin refers to the Teensy pin number. 
-
   // io_target( uint8_t pin ) 
+
   // The comment is the label on the pin on the M50 connector
   
   {'N', Io_target( 24 ) },    // ENABLE_-2V0_BIAS
@@ -128,9 +139,14 @@ These 1 char tags are sent with each SPI and IO command to specify which target.
   
   {'3', Io_target(  3 ) },    // AD5766_A_RST_N (SPI3)
   {'4', Io_target(  9 ) },    // AD5766_B_RST_N (SPI4)
-  {'5', Io_target( 16 ) },    // POT_RST_N      (SPI5)
+  {'5', Io_target( 18 ) },    // POT_RST_N      (SPI5)
 
   {'T', Io_target(  5 ) },    // TEC_ENABLE_N   (TEC_UART)
+
+  // The comment is the label on the Aux header  
+
+  {'9', Io_target( 39 ) },    // D39
+  {'8', Io_target( 38 ) },    // D38
 ```
 
 ### Protocol
@@ -197,8 +213,7 @@ Sets the output voltage on one of the IO pins.
 | - | - | - | 
 | `I` | 1 | Specifies IO Set command |
 | tag | 1 | Specifies target IO port. From [IO target tags list](#IO-target-tags) above. |  
-| data | 2,4,6,... | Variable length of bytes to send, each as a two digit ASCII hex number |
-
+| `0` or `1`  | 1 |  `0`= sets pin to 0 volts, `1`=sets pin to 3.3 volts.  |
 
 ##### IO Response
 
@@ -281,7 +296,7 @@ Note these commands address `AD5766-A` on SPI3, but will work on `AD5766-B` on S
 
 ```
 ;~Reset=LOW (resets chip)
-I31
+I30
 ; T10=100ns, so 1ms more than enough
 D1
 ;~Reset=HIGH
@@ -320,8 +335,23 @@ T3200000
 
 ```
 
-
 ![](AD5766-example-trace.png)
+
+#### D39 digital output
+
+This example generates a 1 second wide, 3.3 volt high square pulse on pin D39 of the AUX connector here...
+
+![image](https://user-images.githubusercontent.com/5520281/130507051-0d09711c-f1f5-4d85-9c5d-7528c1a54d47.png)
+
+```
+; Assumes D39 is at 0 volts (power up state)
+;Set voltage on D39 to 1 volts 
+I31
+;Delay 1 second
+D1000
+;Set voltage on D39 back to 0 volts 
+I30
+```
 
 
 ## Future directions
