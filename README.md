@@ -341,7 +341,8 @@ T3200000
 
 This example generates a 1 second wide, 3.3 volt high square pulse on pin D39 of the AUX connector here...
 
-![image](https://user-images.githubusercontent.com/5520281/130507051-0d09711c-f1f5-4d85-9c5d-7528c1a54d47.png)
+![image](https://user-images.githubusercontent.com/5520281/130508840-246dae33-e095-428f-a572-df5dca48198e.png)
+
 
 ```
 ; Assumes D39 is at 0 volts (power up state)
